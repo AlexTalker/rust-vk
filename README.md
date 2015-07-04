@@ -1,5 +1,7 @@
 # rust-vk
 
+[![Build Status](https://travis-ci.org/AlexTalker/rust-vk.svg?branch=master)](https://travis-ci.org/AlexTalker/rust-vk)
+
 VK.com API wrapper for Rust programming language
 
 _Note_: Посвящается самой необыкновенной, доброй и непредсказуемой девушке на свете, которую автор когда-либо встречал...

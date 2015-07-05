@@ -2,7 +2,7 @@
 //! Presentation of application to easily realizing authorization process.
 //!
 //! # Examples
-//! ```rustc
+//! ```ignore
 //! let app = VkApp::new(3252132, "v5.34".into(), Some("http://example.com/vk-redirect.html".into()));
 //! let url = app.auth_client_uri("audio, friends".into());
 //! //... And then redirect user on the url and so...

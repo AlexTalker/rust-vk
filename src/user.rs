@@ -3,7 +3,7 @@
 //!
 //! # Examples
 //!
-//! ```rust
+//! ```ignore
 //! use std::collections::HashMap;
 //!
 //! let user = VkUser::new(3424133213, "dshwi3092ew98uihedsyu348eihw9832buds8hnekjnsdbfeyusdj",

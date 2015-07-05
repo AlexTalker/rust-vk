@@ -9,6 +9,11 @@ use self::hyper::client::{Client, RedirectPolicy};
 use self::hyper::Url;
 use std::io::prelude::*;
 
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+
+use api::CallError;
+
 /// Function that return authorization uri for Standalone client
 pub fn authorization_client_uri(client_id: u64, scope: String, version: String, redirect: String) -> String {
     format!("https://oauth.vk.com/authorize?client_id={}&scope={}&redirect_uri={}&display=mobile&v={}&response_type=token", client_id, scope, redirect, version)
@@ -57,18 +62,18 @@ fn get_token(u: Url) -> (String, u64, u64) {
     (token, expires, user_id)
 }
 // Find url to confirm rights after authorization process(not always showed form)
-fn find_confirmation_form(s: String) -> String {
+fn find_confirmation_form(s: &String) -> String {
     let mut result = String::new();
     let reg = Regex::new("action=\"([A-Za-z0-9:/.?=&_%]+)\"").unwrap();
-    for cap in reg.captures_iter(&s) {
+    for cap in reg.captures_iter(&*s) {
         result = cap.at(1).unwrap_or("").into();
     }
     result
 }
 // Stub
-fn detect_captcha(s: String) -> bool {
+fn detect_captcha(s: &String) -> bool {
     let reg = Regex::new("id=\"captcha\"").unwrap();
-    if reg.is_match(&s) {
+    if reg.is_match(&*s) {
         true
     }
     else{
@@ -76,7 +81,29 @@ fn detect_captcha(s: String) -> bool {
     }
 }
 
-pub fn fake_browser(login: String, password: String, url: String) -> (String, u64, u64) {
+/// Error returned if captcha was detected on login process
+/// _Warning:_ the error isn't about 'Captcha needed' VK.com API real error.
+#[derive(Debug)]
+pub struct CapthaError;
+
+impl Display for CapthaError {
+
+    fn fmt(&self,f: &mut Formatter) -> Result<(), ::std::fmt::Error> {
+        "Captcha was found on authorization process.".fmt(f)
+    }
+
+}
+
+impl Error for CapthaError {
+
+    fn description(&self) -> &str {
+        "Captha was found on authorization process."
+    }
+
+}
+/// The function implement login process for user without browser
+/// _Warning: use the thing careful to privacy and privacy policy of vk.com_
+pub fn fake_browser(login: String, password: String, url: String) -> Result<(String, u64, u64),CallError> {
     use std::thread::sleep_ms;
     use self::hyper::header::{Cookie,Location,SetCookie, ContentLength};
     let mut client = Client::new();
@@ -102,14 +129,16 @@ pub fn fake_browser(login: String, password: String, url: String) -> (String, u6
         if length != ContentLength(0u64) {
             let mut answer = String::new();
             if let Ok(_) = res.read_to_string(&mut answer) {
-                let url = find_confirmation_form(answer.clone());
+                if detect_captcha(&answer) {
+                    return Err(CallError::new(answer, Some(Box::new(CapthaError))));
+                }
+                let url = find_confirmation_form(&answer);
                 if !url.is_empty() {
-                    if detect_captcha(answer) { break; }// Please, make Error here
                     res = client.post(&url).header::<Cookie>(Cookie::from_cookie_jar(&jar)).send().unwrap();
                 }
             }
 
         }
     }
-    get_token(res.url.clone())
+    Ok(get_token(res.url.clone()))
 }

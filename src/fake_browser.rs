@@ -25,7 +25,6 @@ fn hidden_params(s: String) -> HashMap<String,String> {
     let mut map = HashMap::new();
     let reg = Regex::new("name=\"([a-z_]*)\".*value=\"([:A-Za-z-/0-9.]+)\"").unwrap();
     for cap in reg.captures_iter(&s) {
-        println!("Name: {}, Value: {}", cap.at(1).unwrap_or(""), cap.at(2).unwrap_or(""));
         map.insert(cap.at(1).unwrap_or("").into(), cap.at(2).unwrap_or("").into());
     }
     map

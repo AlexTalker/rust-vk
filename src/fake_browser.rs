@@ -21,10 +21,10 @@ pub fn authorization_client_uri(client_id: u64, scope: String, version: String, 
 
 use std::collections::HashMap;
 // Get params send by hidden fields on auth page form
-fn hidden_params(s: String) -> HashMap<String,String> {
+fn hidden_params(s: &String) -> HashMap<String,String> {
     let mut map = HashMap::new();
     let reg = Regex::new("name=\"([a-z_]*)\".*value=\"([:A-Za-z-/0-9.]+)\"").unwrap();
-    for cap in reg.captures_iter(&s) {
+    for cap in reg.captures_iter(&*s) {
         map.insert(cap.at(1).unwrap_or("").into(), cap.at(2).unwrap_or("").into());
     }
     map
@@ -40,15 +40,15 @@ fn build_post_for_hidden_form(mut hidden_fields: HashMap<String,String>, login: 
     result
 }
 // Find URL to send auth form
-fn get_post_uri(s: String) -> String {
+fn get_post_uri(s: &String) -> String {
     let reg = Regex::new("action=\"([a-z:/?=&.0-9]*)\"").unwrap();
-    match reg.captures_iter(&s).next() {
+    match reg.captures_iter(&*s).next() {
         Some(x) => x.at(1).unwrap_or(""),
         None => ""
     }.into()
 }
 // Get access token and other data from response URL
-fn get_token(u: Url) -> (String, u64, u64) {
+fn get_token(u: &Url) -> (String, u64, u64) {
     let reg = Regex::new("access_token=([a-f0-9]+)&expires_in=([0-9]+)&user_id=([0-9]+)").unwrap();
     let mut token: String = String::new();
     let mut expires: u64 = 0u64;
@@ -105,25 +105,50 @@ impl Error for CapthaError {
 pub fn fake_browser(login: String, password: String, url: String) -> Result<(String, u64, u64),CallError> {
     use std::thread::sleep_ms;
     use self::hyper::header::{Cookie,Location,SetCookie, ContentLength};
+    use self::hyper::client::response::Response;
     let mut client = Client::new();
     client.set_redirect_policy(RedirectPolicy::FollowNone);
-    let mut res = client.get(&url).send().unwrap();
+    let mut res: Response;
+
+    match client.get(&url).send(){
+        Ok(r) => res = r,
+        Err(e) => return Err(CallError::new(url, Some(Box::new(e))))
+    };
+
     let mut jar = CookieJar::new(b"");
-    res.headers.get::<SetCookie>().unwrap().apply_to_cookie_jar(&mut jar);
+    match res.headers.get::<SetCookie>(){
+        Some(setcookie) => setcookie.apply_to_cookie_jar(&mut jar),
+        None => return  Err(CallError::new(
+                format!("Header of response doesn't set any cookies, {}", res.url), None))
+    };
+
     let mut result = String::new();
-    res.read_to_string(&mut result).unwrap();
-    let params = hidden_params(result.clone());
-    sleep_ms(1000);
+    match res.read_to_string(&mut result){
+        Ok(_) => { },
+        Err(e) => return Err(CallError::new(
+                format!("Failed read page to string by url: {}", res.url), Some(Box::new(e))))
+    };
+
+    let params = hidden_params(&result);
     let post_req = build_post_for_hidden_form(params, login, password);
-    let post_uri = get_post_uri(result.clone());
-    res = client.post(&post_uri).header::<Cookie>(Cookie::from_cookie_jar(&jar)).body(&post_req).send().unwrap();
+    let post_uri = get_post_uri(&result);
+    sleep_ms(1000);
+
+    match client.post(&post_uri).header::<Cookie>(Cookie::from_cookie_jar(&jar)).body(&post_req).send(){
+        Ok(r) => res = r,
+        Err(e) => return Err(CallError::new(
+                format!("Can't send POST to {} with body {}",post_uri, post_req), Some(Box::new(e))))
+    };
+
     while res.headers.has::<Location>() {
         if res.headers.has::<SetCookie>() {
             res.headers.get::<SetCookie>().unwrap().apply_to_cookie_jar(&mut jar);
         }
+
         let redirect = res.headers.get::<Location>().unwrap().clone();
         res = client.get(&*redirect).header::<Cookie>(Cookie::from_cookie_jar(&jar)).send().unwrap();
         let length = res.headers.get::<ContentLength>().unwrap().clone();
+
         // Check that we've got yet one confirmation form
         if length != ContentLength(0u64) {
             let mut answer = String::new();
@@ -133,11 +158,23 @@ pub fn fake_browser(login: String, password: String, url: String) -> Result<(Str
                 }
                 let url = find_confirmation_form(&answer);
                 if !url.is_empty() {
-                    res = client.post(&url).header::<Cookie>(Cookie::from_cookie_jar(&jar)).send().unwrap();
+                    match client.post(&url).header::<Cookie>(Cookie::from_cookie_jar(&jar)).send(){
+                        Ok(r) => res = r,
+                        Err(e) => return Err(CallError::new(
+                                format!("Failed POST to url: {}", res.url), Some(Box::new(e))))
+                    };
                 }
             }
 
         }
     }
-    Ok(get_token(res.url.clone()))
+    let result = get_token(&res.url);
+    if result == (String::new(), 0u64, 0u64) {
+        Err(CallError::new(
+                format!("Can't get token by url: {}", res.url),
+                None))
+    }
+    else {
+        Ok(result)
+    }
 }

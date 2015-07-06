@@ -8,8 +8,13 @@
 //! //... And then redirect user on the url and so...
 //! ```
 
+extern crate hyper;
+
+use std::io::prelude::*;
+
 use api::CallError;
 use user::VkUser;
+use server::VkServer;
 use fake_browser::{authorization_client_uri, fake_browser};
 
 /// Reflect VK app needs
@@ -46,5 +51,62 @@ impl VkApp {
             Err(e) => Err(e)
         }
     }
+    /// Implement Server authorization for 'secure.*' methods of VK.com API.
+    pub fn server(&self, secret: String) -> Result<VkServer, CallError> {
+        use ::rustc_serialize::json::Json;
+        use self::hyper::client::Client;
+        use self::hyper::client::response::Response;
 
+        let url = format!("https://oauth.vk.com/access_token?client_id={}&client_secret={}&v={}&grant_type=client_credentials", self.app_id, secret, self.version);
+
+        let client = Client::new();
+
+        let mut res: Response;
+
+        match client.get(&url).send() {
+            Ok(r) => {
+                res = r
+            },
+            Err(e) => {
+                return Err(CallError::new("Server request error.".into(),
+                Some(Box::new(e))))
+
+            }
+        };
+        let mut answer = String::new();
+
+        match res.read_to_string(&mut answer) {
+            Ok(_) => {
+                match answer.parse::<Json>() {
+                    Ok(object) => {
+                        match object.find("access_token") {
+                            Some(json) => {
+                                if json.is_string() {
+                                    Ok(VkServer::new(
+                                            self.app_id,
+                                            json.as_string().unwrap().to_string(),
+                                            secret))
+                                }
+                                else {
+                                    Err(CallError::new("Error parse json.".into(), None))
+                                }
+                            }
+                            None => {
+                                Err(CallError::new("Error access_token field".into(), None))
+                            }                                }
+                    }
+                    Err(e) => {
+                        Err(CallError::new(
+                                "Error parse body of response to json object".into(),
+                                Some(Box::new(e))))
+                    }
+                }
+            }
+            Err(e) => {
+                Err(CallError::new(
+                        "Error reading server reponse body.".into(),
+                        Some(Box::new(e))))
+            }
+        }
+    }
 }

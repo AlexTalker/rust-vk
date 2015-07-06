@@ -2,6 +2,7 @@ extern crate hyper;
 extern crate rustc_serialize;
 
 use self::hyper::client::Client;
+use self::hyper::client::response::Response;
 
 use self::rustc_serialize::json::Json;
 
@@ -15,7 +16,15 @@ pub fn execute(method: String, params: HashMap<String, String>, token: String) -
     let params_get = params.iter().fold(String::new(), |s, (key, value)| { s + &format!("{}={}&",key,value) });
     let url = format!("https://api.vk.com/method/{}?{}access_token={}", method, params_get, token);
     let client = Client::new();
-    let mut res = client.get(&url).send().unwrap();
+    let mut res: Response;
+
+    match client.get(&url).send(){
+        Ok(r) => res = r,
+        Err(e) => return Err(CallError::new(
+                format!("Cannot send GET request to url {}", url),
+                Some(Box::new(e))))
+    };
+
     let mut answer = String::new();
     match res.read_to_string(&mut answer) {
         Ok(_) => {

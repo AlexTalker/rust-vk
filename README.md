@@ -1,4 +1,4 @@
-# rust-vk
+# rust\_vk
 
 [![Build Status](https://travis-ci.org/AlexTalker/rust-vk.svg?branch=master)](https://travis-ci.org/AlexTalker/rust-vk)
 
@@ -11,7 +11,7 @@ _Note_: Посвящается самой необыкновенной, добр
 The library is implemented to make easily authorization and api calls to VK.com API on Rust, for example: 
 
 ```rust
-extern crate rust-vk;
+extern crate rust_vk;
 use rust-vk::api::VkApi;
 use rust-vk::app::VkApp;
 ...

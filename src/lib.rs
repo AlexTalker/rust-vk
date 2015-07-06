@@ -1,4 +1,4 @@
-//! # rust-vk
+//! # rust_vk
 //!
 //! Wrapper around VK.com API for Rust.
 //!

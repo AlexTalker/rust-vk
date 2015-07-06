@@ -1,5 +1,5 @@
 //! # VkUser
-//! Represent user abstraction to easily handling calls to VK.com API.
+//! Represent user abstraction to easily handling calls to VK.com API (Implicit Flow).
 //!
 //! # Examples
 //!

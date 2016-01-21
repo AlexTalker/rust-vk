@@ -11,5 +11,4 @@ keywords = ["vk", "rust-vk"]
 regex = "*"
 cookie = "*"
 rustc-serialize = "*"
-[dependencies.hyper]
-git = "https://github.com/hyperium/hyper"
+hyper = "0.7.2"
